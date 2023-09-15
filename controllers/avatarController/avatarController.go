@@ -269,23 +269,84 @@ func Delete(c *gin.Context) {
 	var avatar models.Avatar
 	idParam := c.Param("id")
 
+	// Mendapatkan protokol dari permintaan pengguna
+	protocol := "http" // Default to http
+	if c.Request.TLS != nil {
+		protocol = "https"
+	}
+
+	// Mendapatkan base URL dari permintaan pengguna
+	baseURL := protocol + "://" + c.Request.Host
+	url := c.Request.URL.String()
+	finalUrl := baseURL + "" + url
+
 	// Konversi parameter id menjadi int64
 	id, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "ID tidak valid"})
+		// Membuat respons JSON yang sesuai dengan format yang diinginkan
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusBadRequest,
+				"status": http.StatusText(http.StatusBadRequest),
+				"url":    finalUrl,
+			},
+			"message": err.Error(),
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, response)
 		return
 	}
 
 	// Cari avatar dengan ID yang sesuai
 	result := models.DB.Where("id = ?", id).First(&avatar)
 	if result.Error != nil {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"message": "Avatar tidak ditemukan"})
+		// Membuat respons JSON yang sesuai dengan format yang diinginkan
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusNotFound,
+				"status": http.StatusText(http.StatusNotFound),
+				"url":    finalUrl,
+			},
+			"message": "Id tidak ditemukan",
+		}
+		c.AbortWithStatusJSON(http.StatusNotFound, response)
+		return
+	}
+
+	// Hapus dari Redis
+	idUpdate, _ := strconv.ParseInt(idParam, 10, 64)
+
+	if err := models.DeleteFromAvatarList(idUpdate); err != nil {
+		avatar.ID = idUpdate
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusInternalServerError,
+				"status": http.StatusText(http.StatusInternalServerError),
+				"url":    finalUrl,
+			},
+			"data": gin.H{
+				"message": "Data di Redis gagal dihapus.",
+			},
+		}
+		c.AbortWithStatusJSON(http.StatusInternalServerError, response)
 		return
 	}
 
 	// Hapus avatar dari database
 	models.DB.Delete(&avatar)
-	c.JSON(http.StatusOK, gin.H{"message": "Data berhasil dihapus"})
+
+	// Mengambil status HTTP dinamis
+	status := c.Writer.Status()
+
+	// Membuat respons JSON yang sesuai dengan format yang diinginkan
+	response := gin.H{
+		"response": gin.H{
+			"code":   status,
+			"status": http.StatusText(status),
+			"url":    finalUrl,
+		},
+		"message": "Data berhasil dihapus",
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func Random(c *gin.Context) {

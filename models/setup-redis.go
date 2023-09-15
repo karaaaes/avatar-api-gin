@@ -124,3 +124,51 @@ func AppendToAvatarList(avatar Avatar, ID int64) error {
 
 	return nil
 }
+
+func DeleteFromAvatarList(ID int64) error {
+	client := ConnectRedis()
+	key := "avatar_list"
+
+	// Mengambil semua data dari Redis
+	existingData, err := client.Get(key).Result()
+	if err != nil && err != redis.Nil {
+		// Return error jika terjadi kesalahan selain key yang tidak ditemukan
+		return err
+	}
+
+	// Mengonversi data JSON yang ada menjadi slice dari avatar
+	var avatars []Avatar
+	if existingData != "" {
+		if err := json.Unmarshal([]byte(existingData), &avatars); err != nil {
+			return err
+		}
+	}
+
+	// Mencari indeks data yang sesuai dengan ID yang akan dihapus
+	var index = -1
+	for i, avatar := range avatars {
+		if avatar.ID == ID {
+			index = i
+			break
+		}
+	}
+
+	// Jika data ditemukan, hapus data tersebut dari slice
+	if index != -1 {
+		avatars = append(avatars[:index], avatars[index+1:]...)
+	}
+
+	// Mengonversi slice avatar yang telah diperbarui menjadi string
+	updatedDataJSON, err := json.Marshal(avatars)
+	if err != nil {
+		return err
+	}
+
+	// Menyimpan data yang telah diperbarui ke Redis
+	err = client.Set(key, updatedDataJSON, 0).Err()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
