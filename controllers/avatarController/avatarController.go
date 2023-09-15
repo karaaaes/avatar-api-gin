@@ -18,30 +18,124 @@ import (
 func Index(c *gin.Context) {
 	var avatars []models.Avatar
 	models.DB.Find(&avatars)
-	c.JSON(http.StatusOK, gin.H{"avatars": avatars})
+
+	// Mendapatkan protokol dari permintaan pengguna
+	protocol := "http" // Default to http
+	if c.Request.TLS != nil {
+		protocol = "https"
+	}
+
+	// Mendapatkan base URL dari permintaan pengguna
+	baseURL := protocol + "://" + c.Request.Host
+	url := c.Request.URL.String()
+	finalUrl := baseURL + "" + url
+
+	// Mengambil status HTTP dinamis
+	status := c.Writer.Status()
+
+	// Membuat respons JSON yang sesuai dengan format yang diinginkan
+	response := gin.H{
+		"response": gin.H{
+			"code":   status,
+			"status": http.StatusText(status),
+			"url":    finalUrl,
+		},
+		"data": avatars,
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func Show(c *gin.Context) {
 	var avatars models.Avatar
 	id := c.Param("id")
 
+	// Mendapatkan protokol dari permintaan pengguna
+	protocol := "http" // Default to http
+	if c.Request.TLS != nil {
+		protocol = "https"
+	}
+
+	// Mendapatkan base URL dari permintaan pengguna
+	baseURL := protocol + "://" + c.Request.Host
+	url := c.Request.URL.String()
+	finalUrl := baseURL + "" + url
+
 	if err := models.DB.First(&avatars, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"message": "Data tidak ditemukan"})
+			// Membuat respons JSON yang sesuai dengan format yang diinginkan
+			response := gin.H{
+				"response": gin.H{
+					"code":   http.StatusNotFound,
+					"status": http.StatusText(http.StatusNotFound),
+					"url":    finalUrl,
+				},
+				"data": gin.H{
+					"message": "Data tidak ditemukan",
+				},
+			}
+
+			c.AbortWithStatusJSON(http.StatusNotFound, response)
 			return
 		} else {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+			// Membuat respons JSON yang sesuai dengan format yang diinginkan
+			response := gin.H{
+				"response": gin.H{
+					"code":   http.StatusInternalServerError,
+					"status": http.StatusText(http.StatusInternalServerError),
+					"url":    finalUrl,
+				},
+				"data": gin.H{
+					"message": err.Error(),
+				},
+			}
+
+			c.AbortWithStatusJSON(http.StatusInternalServerError, response)
 			return
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"avatar": avatars})
+
+	// Mengambil status HTTP dinamis
+	status := c.Writer.Status()
+
+	// Membuat respons JSON yang sesuai dengan format yang diinginkan
+	response := gin.H{
+		"response": gin.H{
+			"code":   status,
+			"status": http.StatusText(status),
+			"url":    finalUrl,
+		},
+		"data": avatars,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func Create(c *gin.Context) {
 	var avatar models.Avatar
 
+	// Mendapatkan protokol dari permintaan pengguna
+	protocol := "http" // Default to http
+	if c.Request.TLS != nil {
+		protocol = "https"
+	}
+
+	// Mendapatkan base URL dari permintaan pengguna
+	baseURL := protocol + "://" + c.Request.Host
+	url := c.Request.URL.String()
+	finalUrl := baseURL + "" + url
+
 	if err := c.ShouldBindJSON(&avatar); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusBadRequest,
+				"status": http.StatusText(http.StatusBadRequest),
+				"url":    finalUrl,
+			},
+			"data": gin.H{
+				"message": err.Error(),
+			},
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, response)
 		return
 	}
 
@@ -51,7 +145,17 @@ func Create(c *gin.Context) {
 
 	// Memeriksa apakah avatar_username sudah ada dalam database
 	if err := models.DB.Where("avatar_username = ?", avatar.AvatarUsername).First(&models.Avatar{}).Error; err == nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "Sudah terdapat avatar dengan username tersebut"})
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusBadRequest,
+				"status": http.StatusText(http.StatusBadRequest),
+				"url":    finalUrl,
+			},
+			"data": gin.H{
+				"message": "Sudah terdapat avatar dengan username tersebut",
+			},
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, response)
 		return
 	}
 
@@ -59,11 +163,182 @@ func Create(c *gin.Context) {
 
 	// Menambahkan data JSON baru ke dalam "avatar_list" di Redis
 	if err := models.AppendToAvatarList(avatar, avatar.ID); err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": "Gagal menambahkan data ke Redis"})
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusInternalServerError,
+				"status": http.StatusText(http.StatusInternalServerError),
+				"url":    finalUrl,
+			},
+			"data": gin.H{
+				"message": "Gagal menambahkan data ke Redis",
+			},
+		}
+		c.AbortWithStatusJSON(http.StatusInternalServerError, response)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"avatar": avatar})
+	// Membuat respons JSON yang sesuai dengan format yang diinginkan
+	response := gin.H{
+		"response": gin.H{
+			"code":   http.StatusOK,
+			"status": http.StatusText(http.StatusOK),
+			"url":    finalUrl,
+		},
+		"data": avatar,
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+func Update(c *gin.Context) {
+	var avatar models.Avatar
+	id := c.Param("id")
+
+	// Mendapatkan protokol dari permintaan pengguna
+	protocol := "http" // Default to http
+	if c.Request.TLS != nil {
+		protocol = "https"
+	}
+
+	// Mendapatkan base URL dari permintaan pengguna
+	baseURL := protocol + "://" + c.Request.Host
+	url := c.Request.URL.String()
+	finalUrl := baseURL + "" + url
+
+	if err := c.ShouldBindJSON(&avatar); err != nil {
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusBadRequest,
+				"status": http.StatusText(http.StatusBadRequest),
+				"url":    finalUrl,
+			},
+			"data": gin.H{
+				"message": err.Error(),
+			},
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, response)
+		return
+	}
+
+	if models.DB.Model(&avatar).Where("id = ?", id).Updates(&avatar).RowsAffected == 0 {
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusBadRequest,
+				"status": http.StatusText(http.StatusBadRequest),
+				"url":    finalUrl,
+			},
+			"data": gin.H{
+				"message": "Id tidak ditemukan. Tidak dapat update avatar",
+			},
+		}
+		c.AbortWithStatusJSON(http.StatusBadRequest, response)
+		return
+	}
+
+	idUpdate, _ := strconv.ParseInt(id, 10, 64)
+
+	if err := models.UpdateRedisData(avatar, idUpdate); err != nil {
+		avatar.ID = idUpdate
+		response := gin.H{
+			"response": gin.H{
+				"code":   http.StatusInternalServerError,
+				"status": http.StatusText(http.StatusInternalServerError),
+				"url":    finalUrl,
+			},
+			"data": gin.H{
+				"message": "Gagal update data ke Redis",
+			},
+		}
+		c.AbortWithStatusJSON(http.StatusInternalServerError, response)
+		return
+	}
+
+	avatar.ID = idUpdate
+	response := gin.H{
+		"response": gin.H{
+			"code":   http.StatusOK,
+			"status": http.StatusText(http.StatusOK),
+			"url":    finalUrl,
+		},
+		"message": "Data berhasil di update",
+		"data":    avatar,
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+func Delete(c *gin.Context) {
+	var avatar models.Avatar
+	idParam := c.Param("id")
+
+	// Konversi parameter id menjadi int64
+	id, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "ID tidak valid"})
+		return
+	}
+
+	// Cari avatar dengan ID yang sesuai
+	result := models.DB.Where("id = ?", id).First(&avatar)
+	if result.Error != nil {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"message": "Avatar tidak ditemukan"})
+		return
+	}
+
+	// Hapus avatar dari database
+	models.DB.Delete(&avatar)
+	c.JSON(http.StatusOK, gin.H{"message": "Data berhasil dihapus"})
+}
+
+func Random(c *gin.Context) {
+	var avatar models.Avatar
+
+	// Mengambil status HTTP dinamis
+	status := c.Writer.Status()
+
+	// Mendapatkan protokol dari permintaan pengguna
+	protocol := "http" // Default to http
+	if c.Request.TLS != nil {
+		protocol = "https"
+	}
+
+	// Mendapatkan base URL dari permintaan pengguna
+	baseURL := protocol + "://" + c.Request.Host
+	url := c.Request.URL.String()
+	finalUrl := baseURL + "" + url
+
+	// Mengambil semua ID dari database
+	var avatarIDs []int64
+	if err := models.DB.Model(&avatar).Pluck("id", &avatarIDs).Error; err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
+	}
+
+	// Mengambil ID secara acak
+	rand.Seed(time.Now().UnixNano())
+	randomIndex := rand.Intn(len(avatarIDs))
+	randomID := avatarIDs[randomIndex]
+
+	// Mengambil data Avatar berdasarkan ID yang diambil secara acak
+	if err := models.DB.First(&avatar, randomID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"message": "Data tidak ditemukan"})
+			return
+		} else {
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+			return
+		}
+	}
+
+	// Membuat respons JSON yang sesuai dengan format yang diinginkan
+	response := gin.H{
+		"response": gin.H{
+			"code":   status,
+			"status": http.StatusText(status),
+			"url":    finalUrl,
+		},
+		"data": avatar,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func generateUniqueCode(input string) string {
@@ -95,71 +370,4 @@ func generateUniqueCode(input string) string {
 	finalString := parts[0] + "/" + hashedString + "." + partsJpg[1]
 
 	return finalString
-}
-
-func Update(c *gin.Context) {
-	var avatar models.Avatar
-	id := c.Param("id")
-
-	if err := c.ShouldBindJSON(&avatar); err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err.Error()})
-		return
-	}
-
-	if models.DB.Model(&avatar).Where("id = ?", id).Updates(&avatar).RowsAffected == 0 {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "Tidak dapat update avatar"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Data berhasil di Update"})
-}
-
-func Delete(c *gin.Context) {
-	var avatar models.Avatar
-	idParam := c.Param("id")
-
-	// Konversi parameter id menjadi int64
-	id, err := strconv.ParseInt(idParam, 10, 64)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "ID tidak valid"})
-		return
-	}
-
-	// Cari avatar dengan ID yang sesuai
-	result := models.DB.Where("id = ?", id).First(&avatar)
-	if result.Error != nil {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"message": "Avatar tidak ditemukan"})
-		return
-	}
-
-	// Hapus avatar dari database
-	models.DB.Delete(&avatar)
-	c.JSON(http.StatusOK, gin.H{"message": "Data berhasil dihapus"})
-}
-
-func Random(c *gin.Context) {
-	var avatar models.Avatar
-	// Mengambil semua ID dari database
-	var avatarIDs []int64
-	if err := models.DB.Model(&avatar).Pluck("id", &avatarIDs).Error; err != nil {
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
-		return
-	}
-
-	// Mengambil ID secara acak
-	rand.Seed(time.Now().UnixNano())
-	randomIndex := rand.Intn(len(avatarIDs))
-	randomID := avatarIDs[randomIndex]
-
-	// Mengambil data Avatar berdasarkan ID yang diambil secara acak
-	if err := models.DB.First(&avatar, randomID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"message": "Data tidak ditemukan"})
-			return
-		} else {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
-			return
-		}
-	}
-	c.JSON(http.StatusOK, gin.H{"avatar": avatar})
 }
