@@ -253,6 +253,42 @@ func Update(c *gin.Context) {
 	}
 
 	avatar.ID = idUpdate
+
+	var avatarUpdate models.Avatar
+	if err := models.DB.First(&avatarUpdate, idUpdate).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// Membuat respons JSON yang sesuai dengan format yang diinginkan
+			response := gin.H{
+				"response": gin.H{
+					"code":   http.StatusNotFound,
+					"status": http.StatusText(http.StatusNotFound),
+					"url":    finalUrl,
+				},
+				"data": gin.H{
+					"message": "Data tidak ditemukan",
+				},
+			}
+
+			c.AbortWithStatusJSON(http.StatusNotFound, response)
+			return
+		} else {
+			// Membuat respons JSON yang sesuai dengan format yang diinginkan
+			response := gin.H{
+				"response": gin.H{
+					"code":   http.StatusInternalServerError,
+					"status": http.StatusText(http.StatusInternalServerError),
+					"url":    finalUrl,
+				},
+				"data": gin.H{
+					"message": err.Error(),
+				},
+			}
+
+			c.AbortWithStatusJSON(http.StatusInternalServerError, response)
+			return
+		}
+	}
+
 	response := gin.H{
 		"response": gin.H{
 			"code":   http.StatusOK,
@@ -260,7 +296,7 @@ func Update(c *gin.Context) {
 			"url":    finalUrl,
 		},
 		"message": "Data berhasil di update",
-		"data":    avatar,
+		"data":    avatarUpdate,
 	}
 	c.JSON(http.StatusOK, response)
 }
